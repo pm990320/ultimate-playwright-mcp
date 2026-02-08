@@ -86,7 +86,7 @@ function acquireLock(maxWaitMs = 3_000): void {
         // Force-break stale lock
         try {
           unlinkSync(LOCK_PATH);
-        } catch {}
+        } catch { /* ignore */ }
         continue;
       }
       // Spin-wait briefly
@@ -102,7 +102,7 @@ function acquireLock(maxWaitMs = 3_000): void {
 function releaseLock(): void {
   try {
     unlinkSync(LOCK_PATH);
-  } catch {}
+  } catch { /* ignore */ }
 }
 
 function isProcessAlive(pid: number): boolean {

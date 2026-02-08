@@ -17,6 +17,7 @@ function matchUrlPattern(pattern: string, url: string): boolean {
     return true;
   }
   if (p.includes("*")) {
+    // eslint-disable-next-line no-useless-escape
     const escaped = p.replace(/[|\{}()[\]^$+?.]/g, "\$&");
     const regex = new RegExp(`^${escaped.replace(/\*\*/g, ".*").replace(/\*/g, ".*")}$`);
     return regex.test(url);
