@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "UltimatePW Tab Grouper",
+  "description": "Companion extension for ultimate-playwright-mcp. Provides chrome.tabGroups API access via CDP.",
+  "version": "1.0.0",
+  "permissions": ["tabs", "tabGroups", "alarms"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "externally_connectable": {
+    "ids": ["*"]
+  }
+}

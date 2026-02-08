@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "ultimate-playwright": {
+      "command": "node",
+      "args": [
+        "/Users/patrick/git/ultimate-playwright-mcp/dist/cli.js"
+      ]
+    }
+  }
+}

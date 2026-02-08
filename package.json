@@ -1,0 +1,66 @@
+{
+  "name": "ultimate-playwright-mcp",
+  "version": "0.1.0",
+  "description": "Multi-agent Playwright MCP server with tab isolation via targetId",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "ultimate-playwright-mcp": "./dist/cli.js",
+    "upmcp": "./dist/cli.js",
+    "upmcp-daemon": "./dist/daemon/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "lint": "eslint . --max-warnings 0",
+    "type-check": "tsc --noEmit",
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "playwright",
+    "browser",
+    "automation",
+    "multi-agent",
+    "tab-isolation",
+    "cdp"
+  ],
+  "author": "Patrick",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "adm-zip": "^0.5.16",
+    "commander": "^12.1.0",
+    "glob": "^13.0.1",
+    "playwright-core": "^1.49.1",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/adm-zip": "^0.5.7",
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.18.2",
+    "@typescript-eslint/parser": "^8.18.2",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

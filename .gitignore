@@ -1,0 +1,9 @@
+node_modules/
+dist/
+chrome/
+*.tsbuildinfo
+test-*.js
+test-*.mjs
+test-*.json
+verify-*.js
+*.log

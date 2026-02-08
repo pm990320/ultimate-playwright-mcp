@@ -1,0 +1,37 @@
+{
+  "mcpServers": {
+    "ultimate-playwright": {
+      "command": "node",
+      "args": [
+        "/path/to/ultimate-playwright-mcp/dist/cli.js",
+        "--chrome-extensions",
+        "nngceckbapebfimnlniiiahkandclblb",
+        "--chrome-user-data-dir",
+        "/Users/yourname/.ultimate-playwright-mcp/chrome-profile"
+      ]
+    }
+  }
+}
+
+// Alternative: Using environment variables
+{
+  "mcpServers": {
+    "ultimate-playwright": {
+      "command": "node",
+      "args": [
+        "/path/to/ultimate-playwright-mcp/dist/cli.js"
+      ],
+      "env": {
+        "CHROME_EXTENSIONS": "nngceckbapebfimnlniiiahkandclblb,cjpalhdlnbpafiamejdnhcphjbkeiagm",
+        "CHROME_USER_DATA_DIR": "/Users/yourname/.ultimate-playwright-mcp/chrome-profile"
+      }
+    }
+  }
+}
+
+// Extension IDs (Chrome Web Store):
+// - Bitwarden: nngceckbapebfimnlniiiahkandclblb
+// - uBlock Origin: cjpalhdlnbpafiamejdnhcphjbkeiagm
+// - Metamask: nkbihfbeogaeaoehlefnkodbefgpgknn
+//
+// You can also use local paths to unpacked extensions instead of IDs
