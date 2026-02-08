@@ -40,8 +40,16 @@
     "tab-isolation",
     "cdp"
   ],
-  "author": "Patrick",
+  "author": "Patrick Menlove",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pm990320/ultimate-playwright-mcp.git"
+  },
+  "homepage": "https://github.com/pm990320/ultimate-playwright-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/pm990320/ultimate-playwright-mcp/issues"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
     "adm-zip": "^0.5.16",
