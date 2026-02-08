@@ -77,6 +77,29 @@ globalThis.queryTabs = async function queryTabs() {
   }));
 };
 
+/**
+ * Create a new tab and return its Chrome tab ID immediately.
+ * This is the preferred way to create tabs — gives us the tabId upfront,
+ * avoiding the unreliable URL-based mapping from CDP targetIds.
+ * @param {string} url - URL to navigate to
+ * @param {boolean} [active=false] - Whether the tab should be active
+ * @returns {Promise<{tabId: number, url: string, windowId: number}>}
+ */
+globalThis.createTab = async function createTab(url, active = false) {
+  const tab = await chrome.tabs.create({ url, active });
+  return { tabId: tab.id, url: tab.pendingUrl || tab.url || url, windowId: tab.windowId };
+};
+
+/**
+ * Close a tab by its Chrome tab ID.
+ * @param {number} tabId
+ * @returns {Promise<{ok: true}>}
+ */
+globalThis.closeTab = async function closeTab(tabId) {
+  await chrome.tabs.remove(tabId);
+  return { ok: true };
+};
+
 // ── Keepalive & wake support ───────────────────────────────────────────────
 // MV3 service workers terminate after 30s of inactivity. We use two strategies:
 // 1. chrome.alarms for periodic self-wake (minimum ~30s interval)

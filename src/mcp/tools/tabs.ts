@@ -17,12 +17,13 @@ import {
   getTabGroup,
   pruneStaleTargets,
   setChromeGroupId,
+  getChromeTabId,
 } from "../../browser/tab-groups.js";
 import {
   groupTabsVisually,
-  mapTargetIdsToChromeTabIds,
-  ungroupTabsVisually,
   isTabGrouperAvailable,
+  createTabViaExtension,
+  closeTabViaExtension,
 } from "../../browser/chrome-tab-groups.js";
 
 export function registerBrowserTabsTool(
@@ -178,46 +179,60 @@ export function registerBrowserTabsTool(
             );
           }
 
-          const newTab = await createPageViaPlaywright({
-            cdpUrl: config.cdpEndpoint,
-            url: url || "about:blank",
-          });
+          const tabUrl = url || "about:blank";
+          let resultTargetId: string;
+          let chromeTabId: number | undefined;
 
-          // Associate with group
-          addTabToGroup(newTab.targetId, groupId);
-
-          // Try to add to Chrome visual group
-          try {
-            const hasExtension = await isTabGrouperAvailable(config.cdpEndpoint!);
-            if (hasExtension) {
-              const idMap = await mapTargetIdsToChromeTabIds(config.cdpEndpoint!, [
-                { targetId: newTab.targetId, url: newTab.url, title: newTab.title },
-              ]);
-              const chromeTabId = idMap.get(newTab.targetId);
-              if (chromeTabId !== undefined) {
-                const color = group.color || "grey";
-                const result = await groupTabsVisually(
-                  config.cdpEndpoint!,
-                  [chromeTabId],
-                  group.name,
-                  color,
-                  group.chromeGroupId,
-                );
-                if (!group.chromeGroupId) {
-                  setChromeGroupId(groupId, result.groupId);
-                }
-              }
+          // Prefer creating via extension (gives us Chrome tab ID directly for reliable grouping)
+          const hasExtension = await isTabGrouperAvailable(config.cdpEndpoint!);
+          if (hasExtension) {
+            try {
+              const extTab = await createTabViaExtension(config.cdpEndpoint!, tabUrl);
+              resultTargetId = extTab.targetId;
+              chromeTabId = extTab.chromeTabId;
+            } catch {
+              // Fall back to Playwright
+              const pwTab = await createPageViaPlaywright({
+                cdpUrl: config.cdpEndpoint,
+                url: tabUrl,
+              });
+              resultTargetId = pwTab.targetId;
             }
-          } catch {
-            // Visual grouping is best-effort
+          } else {
+            const pwTab = await createPageViaPlaywright({
+              cdpUrl: config.cdpEndpoint,
+              url: tabUrl,
+            });
+            resultTargetId = pwTab.targetId;
+          }
+
+          // Associate with group in registry (include Chrome tab ID if available)
+          addTabToGroup(resultTargetId, groupId, chromeTabId);
+
+          // Add to Chrome visual group
+          if (chromeTabId !== undefined) {
+            try {
+              const color = group.color || "grey";
+              const result = await groupTabsVisually(
+                config.cdpEndpoint!,
+                [chromeTabId],
+                group.name,
+                color,
+                group.chromeGroupId,
+              );
+              if (!group.chromeGroupId) {
+                setChromeGroupId(groupId, result.groupId);
+              }
+            } catch {
+              // Visual grouping is best-effort
+            }
           }
 
           return (
             `**Tab created**\n` +
-            `**targetId: ${newTab.targetId}** ← Use this with other browser tools\n` +
-            (groupId ? `Group: ${groupId}\n` : "") +
-            `Title: ${newTab.title || "(no title)"}\n` +
-            `URL: ${newTab.url}`
+            `**targetId: ${resultTargetId}** ← Use this with other browser tools\n` +
+            `Group: ${groupId}\n` +
+            `URL: ${tabUrl}`
           );
         }
 
@@ -225,24 +240,26 @@ export function registerBrowserTabsTool(
           const tabs = await getScopedTabs();
           const tid = await resolveTarget(tabs);
 
-          // Try to ungroup visually before closing
-          try {
-            const tabInfo = tabs.find((t) => t.targetId === tid);
-            if (tabInfo) {
-              const idMap = await mapTargetIdsToChromeTabIds(config.cdpEndpoint!, [tabInfo]);
-              const chromeId = idMap.get(tid);
-              if (chromeId !== undefined) {
-                await ungroupTabsVisually(config.cdpEndpoint!, [chromeId]);
-              }
-            }
-          } catch {
-            // Visual ungrouping is best-effort
-          }
+          // Get stored Chrome tab ID for clean closure
+          const storedChromeTabId = getChromeTabId(tid);
 
-          await closePageByTargetIdViaPlaywright({
-            cdpUrl: config.cdpEndpoint,
-            targetId: tid,
-          });
+          // Close the tab — prefer extension if we have the Chrome tab ID
+          if (storedChromeTabId !== undefined) {
+            try {
+              await closeTabViaExtension(config.cdpEndpoint!, storedChromeTabId);
+            } catch {
+              // Fall back to Playwright
+              await closePageByTargetIdViaPlaywright({
+                cdpUrl: config.cdpEndpoint,
+                targetId: tid,
+              });
+            }
+          } else {
+            await closePageByTargetIdViaPlaywright({
+              cdpUrl: config.cdpEndpoint,
+              targetId: tid,
+            });
+          }
 
           // Remove from registry
           removeTabFromGroup(tid);

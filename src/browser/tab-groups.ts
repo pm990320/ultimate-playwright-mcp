@@ -25,6 +25,8 @@ export interface TabGroup {
 export interface TabEntry {
   groupId: string;
   addedAt: number;
+  /** Chrome's internal tab ID (from extension), if available */
+  chromeTabId?: number;
 }
 
 export interface TabGroupRegistry {
@@ -220,13 +222,26 @@ export function deleteTabGroup(groupId: string): { removedTargetIds: string[] } 
 /**
  * Associate a targetId with a group.
  */
-export function addTabToGroup(targetId: string, groupId: string): void {
+export function addTabToGroup(targetId: string, groupId: string, chromeTabId?: number): void {
   withRegistry((reg) => {
     if (!reg.groups[groupId]) {
       throw new Error(`Tab group not found: ${groupId}`);
     }
-    reg.tabs[targetId] = { groupId, addedAt: Date.now() };
+    reg.tabs[targetId] = { groupId, addedAt: Date.now(), chromeTabId };
   });
+}
+
+/**
+ * Get the Chrome tab ID for a CDP targetId, if stored.
+ */
+export function getChromeTabId(targetId: string): number | undefined {
+  acquireLock();
+  try {
+    const reg = readRegistry();
+    return reg.tabs[targetId]?.chromeTabId;
+  } finally {
+    releaseLock();
+  }
 }
 
 /**

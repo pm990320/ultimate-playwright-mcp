@@ -534,3 +534,67 @@ export async function listVisualTabGroups(
     collapsed: boolean;
   }>;
 }
+
+/**
+ * Create a tab via the extension (gives us the Chrome tab ID directly).
+ * This avoids the unreliable URL-based mapping from CDP targetIds.
+ * Returns both the Chrome tabId and the CDP targetId.
+ */
+export async function createTabViaExtension(
+  cdpUrl: string,
+  url: string,
+): Promise<{ chromeTabId: number; targetId: string; url: string }> {
+  // Snapshot existing CDP targets BEFORE creating the tab
+  const beforeResp = await fetch(`${cdpUrl}/json/list`, {
+    signal: AbortSignal.timeout(3000),
+    headers: getHeadersWithAuth(`${cdpUrl}/json/list`),
+  });
+  const beforeTargets = beforeResp.ok
+    ? ((await beforeResp.json()) as CDPTarget[])
+    : [];
+  const beforeIds = new Set(beforeTargets.map((t) => t.id));
+
+  // Create the tab via extension
+  const result = (await evalOnExtension(
+    cdpUrl,
+    `createTab(${JSON.stringify(url)})`,
+  )) as { tabId: number; url: string; windowId: number };
+
+  // Poll for the NEW CDP target (one that wasn't in the before snapshot)
+  let targetId: string | null = null;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const resp = await fetch(`${cdpUrl}/json/list`, {
+      signal: AbortSignal.timeout(3000),
+      headers: getHeadersWithAuth(`${cdpUrl}/json/list`),
+    });
+    if (resp.ok) {
+      const targets = (await resp.json()) as CDPTarget[];
+      const newTarget = targets.find(
+        (t) => t.type === "page" && !beforeIds.has(t.id),
+      );
+      if (newTarget) {
+        targetId = newTarget.id;
+        break;
+      }
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+
+  if (!targetId) {
+    throw new Error(
+      `Created Chrome tab ${result.tabId} but could not find new CDP target`,
+    );
+  }
+
+  return { chromeTabId: result.tabId, targetId, url: result.url };
+}
+
+/**
+ * Close a tab via the extension using its Chrome tab ID.
+ */
+export async function closeTabViaExtension(
+  cdpUrl: string,
+  chromeTabId: number,
+): Promise<void> {
+  await evalOnExtension(cdpUrl, `closeTab(${chromeTabId})`);
+}
