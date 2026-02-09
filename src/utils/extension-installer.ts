@@ -108,6 +108,7 @@ async function downloadExtension(extensionId: string): Promise<string> {
       throw new Error("No response body");
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Node fetch ReadableStream vs NodeJS.ReadableStream type mismatch
     await pipeline(response.body as any, fileStream);
 
     // Extract CRX file (remove CRX header first)

@@ -3,6 +3,7 @@
  */
 
 import type { ServerConfig } from "../../config.js";
+import type { RegisterToolFn } from "../types.js";
 import {
   listPagesViaPlaywright,
   createPageViaPlaywright,
@@ -27,7 +28,7 @@ import {
 } from "../../browser/chrome-tab-groups.js";
 
 export function registerBrowserTabsTool(
-  register: (name: string, description: string, schema: any, handler: (args: any) => Promise<any>) => void,
+  register: RegisterToolFn,
   config: ServerConfig
 ) {
   register(

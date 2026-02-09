@@ -9,6 +9,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { ServerConfig } from "../config.js";
+import type { ToolInputSchema, ToolHandler, RegisterToolFn } from "./types.js";
 import { DaemonManager } from "../daemon/manager.js";
 import { registerBrowserTabsTool } from "./tools/tabs.js";
 import { registerBrowserNavigateTool } from "./tools/navigate.js";
@@ -36,19 +37,14 @@ export async function createMCPServer(config: ServerConfig) {
   // Tool registry
   const tools = new Map<string, {
     description: string;
-    inputSchema: any;
-    handler: (args: any) => Promise<any>;
+    inputSchema: ToolInputSchema;
+    handler: ToolHandler;
   }>();
 
   // Helper to register tools
-  function registerTool(
-    name: string,
-    description: string,
-    inputSchema: any,
-    handler: (args: any) => Promise<any>
-  ) {
+  const registerTool: RegisterToolFn = (name, description, inputSchema, handler) => {
     tools.set(name, { description, inputSchema, handler });
-  }
+  };
 
   // Register all tools
   registerBrowserTabGroupTool(registerTool, config);

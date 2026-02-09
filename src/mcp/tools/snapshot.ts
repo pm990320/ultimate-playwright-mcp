@@ -3,10 +3,11 @@
  */
 
 import type { ServerConfig } from "../../config.js";
+import type { RegisterToolFn } from "../types.js";
 import { snapshotRoleViaPlaywright } from "../../browser/pw-tools-snapshot.js";
 
 export function registerBrowserSnapshotTool(
-  register: (name: string, description: string, schema: any, handler: (args: any) => Promise<any>) => void,
+  register: RegisterToolFn,
   config: ServerConfig
 ) {
   register(

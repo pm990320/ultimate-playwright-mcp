@@ -190,7 +190,8 @@ class ChromeDaemon {
       }
 
       // Read existing preferences or create new
-      let prefs: any = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Chrome prefs JSON has deeply nested dynamic structure
+      let prefs: Record<string, any> = {};
       if (fs.existsSync(prefsPath)) {
         const prefsContent = fs.readFileSync(prefsPath, "utf-8");
         prefs = JSON.parse(prefsContent);

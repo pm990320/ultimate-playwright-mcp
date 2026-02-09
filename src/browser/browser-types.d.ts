@@ -5,14 +5,17 @@
 
 declare global {
   interface Element {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- browser globals need dynamic property access for page.evaluate() contexts
     [key: string]: any;
   }
 
   interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- browser globals need dynamic property access for page.evaluate() contexts
     [key: string]: any;
   }
 
   interface Document {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- browser globals need dynamic property access for page.evaluate() contexts
     [key: string]: any;
   }
 

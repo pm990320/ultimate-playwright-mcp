@@ -3,6 +3,7 @@
  */
 
 import type { ServerConfig } from "../../config.js";
+import type { RegisterToolFn } from "../types.js";
 import {
   clickViaPlaywright,
   typeViaPlaywright,
@@ -14,7 +15,7 @@ import {
 } from "../../browser/pw-tools-interactions.js";
 
 export function registerBrowserActionTools(
-  register: (name: string, description: string, schema: any, handler: (args: any) => Promise<any>) => void,
+  register: RegisterToolFn,
   config: ServerConfig
 ) {
   // browser_click
