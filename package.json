@@ -1,6 +1,6 @@
 {
   "name": "ultimate-playwright-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Multi-agent Playwright MCP server with tab isolation via targetId",
   "type": "module",
   "main": "./dist/index.js",
