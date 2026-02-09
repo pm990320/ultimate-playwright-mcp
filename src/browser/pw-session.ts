@@ -17,9 +17,67 @@ import type {
   Response,
 } from "playwright-core";
 import { chromium } from "playwright-core";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 import { formatErrorMessage } from "../utils/errors.js";
 import { getHeadersWithAuth } from "./cdp.helpers.js";
 import { getChromeWebSocketUrl } from "./chrome.js";
+
+// ---------- Persistent ref store (file-based) ----------
+const REFS_STORE_DIR = path.join(os.tmpdir(), "ultimate-playwright-mcp-refs");
+const REFS_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function ensureRefsDir(): void {
+  try {
+    if (!fs.existsSync(REFS_STORE_DIR)) {
+      fs.mkdirSync(REFS_STORE_DIR, { recursive: true });
+    }
+  } catch {
+    // best-effort
+  }
+}
+
+function refsFilePath(key: string): string {
+  // Sanitise key for filename
+  const safe = key.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 200);
+  return path.join(REFS_STORE_DIR, `${safe}.json`);
+}
+
+function persistRefs(key: string, entry: RoleRefsCacheEntry): void {
+  ensureRefsDir();
+  try {
+    const data = JSON.stringify({ ts: Date.now(), ...entry });
+    fs.writeFileSync(refsFilePath(key), data, "utf-8");
+  } catch {
+    // best-effort
+  }
+}
+
+function loadPersistedRefs(key: string): RoleRefsCacheEntry | null {
+  try {
+    const fp = refsFilePath(key);
+    if (!fs.existsSync(fp)) return null;
+    const raw = JSON.parse(fs.readFileSync(fp, "utf-8")) as {
+      ts: number;
+      refs: RoleRefs;
+      frameSelector?: string;
+      mode?: NonNullable<PageState["roleRefsMode"]>;
+    };
+    if (Date.now() - raw.ts > REFS_TTL_MS) {
+      fs.unlinkSync(fp);
+      return null;
+    }
+    return {
+      refs: raw.refs,
+      ...(raw.frameSelector ? { frameSelector: raw.frameSelector } : {}),
+      ...(raw.mode ? { mode: raw.mode } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+// ---------- End persistent ref store ----------
 
 export type BrowserConsoleMessage = {
   type: string;
@@ -130,11 +188,13 @@ export function rememberRoleRefsForTarget(opts: {
   if (!targetId) {
     return;
   }
-  roleRefsByTarget.set(roleRefsKey(opts.cdpUrl, targetId), {
+  const key = roleRefsKey(opts.cdpUrl, targetId);
+  const entry: RoleRefsCacheEntry = {
     refs: opts.refs,
     ...(opts.frameSelector ? { frameSelector: opts.frameSelector } : {}),
     ...(opts.mode ? { mode: opts.mode } : {}),
-  });
+  };
+  roleRefsByTarget.set(key, entry);
   while (roleRefsByTarget.size > MAX_ROLE_REFS_CACHE) {
     const first = roleRefsByTarget.keys().next();
     if (first.done) {
@@ -142,6 +202,8 @@ export function rememberRoleRefsForTarget(opts: {
     }
     roleRefsByTarget.delete(first.value);
   }
+  // Persist to disk so refs survive across process restarts (mcporter CLI)
+  persistRefs(key, entry);
 }
 
 export function storeRoleRefsForTarget(opts: {
@@ -177,17 +239,25 @@ export function restoreRoleRefsForTarget(opts: {
   if (!targetId) {
     return;
   }
-  const cached = roleRefsByTarget.get(roleRefsKey(opts.cdpUrl, targetId));
-  if (!cached) {
+  const key = roleRefsKey(opts.cdpUrl, targetId);
+  let entry = roleRefsByTarget.get(key);
+  // Fall back to disk-persisted refs (survives across mcporter CLI invocations)
+  if (!entry) {
+    entry = loadPersistedRefs(key) ?? undefined;
+    if (entry) {
+      roleRefsByTarget.set(key, entry);
+    }
+  }
+  if (!entry) {
     return;
   }
   const state = ensurePageState(opts.page);
   if (state.roleRefs) {
     return;
   }
-  state.roleRefs = cached.refs;
-  state.roleRefsFrameSelector = cached.frameSelector;
-  state.roleRefsMode = cached.mode;
+  state.roleRefs = entry.refs;
+  state.roleRefsFrameSelector = entry.frameSelector;
+  state.roleRefsMode = entry.mode;
 }
 
 export function ensurePageState(page: Page): PageState {
