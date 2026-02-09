@@ -26,10 +26,11 @@
     "watch": "tsc --watch",
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
-    "test": "playwright test",
+    "test": "vitest run",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test:watch": "vitest"
   },
   "keywords": [
     "mcp",
@@ -61,13 +62,15 @@
   "devDependencies": {
     "@playwright/test": "^1.49.1",
     "@types/adm-zip": "^0.5.7",
-    "@types/node": "^22.10.2",
+    "@types/node": "^22.19.10",
     "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.18.2",
     "@typescript-eslint/parser": "^8.18.2",
     "eslint": "^9.17.0",
     "globals": "^17.3.0",
-    "typescript": "^5.7.2"
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=18.0.0"

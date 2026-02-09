@@ -16,6 +16,7 @@ import { registerBrowserNavigateTool } from "./tools/navigate.js";
 import { registerBrowserSnapshotTool } from "./tools/snapshot.js";
 import { registerBrowserActionTools } from "./tools/actions.js";
 import { registerBrowserTabGroupTool } from "./tools/tab-group.js";
+import { registerBrowserScreenshotTool } from "./tools/screenshot.js";
 import { warmupTabGrouper, seedExtensionIdFromPath } from "../browser/chrome-tab-groups.js";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -52,6 +53,7 @@ export async function createMCPServer(config: ServerConfig) {
   registerBrowserNavigateTool(registerTool, config);
   registerBrowserSnapshotTool(registerTool, config);
   registerBrowserActionTools(registerTool, config);
+  registerBrowserScreenshotTool(registerTool, config);
 
   // List tools handler
   server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -75,6 +77,21 @@ export async function createMCPServer(config: ServerConfig) {
 
     try {
       const result = await tool.handler(args || {});
+
+      // Handle image responses (e.g., screenshots)
+      if (result && typeof result === "object" && "__image" in result) {
+        const img = result as unknown as { base64: string; mimeType: string };
+        return {
+          content: [
+            {
+              type: "image" as const,
+              data: img.base64,
+              mimeType: img.mimeType,
+            },
+          ],
+        };
+      }
+
       return {
         content: [
           {

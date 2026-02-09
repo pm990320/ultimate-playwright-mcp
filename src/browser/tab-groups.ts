@@ -39,7 +39,7 @@ export interface TabGroupRegistry {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const DATA_DIR = join(homedir(), ".ultimate-playwright-mcp");
+const DATA_DIR = process.env.UPMCP_DATA_DIR || join(homedir(), ".ultimate-playwright-mcp");
 const REGISTRY_PATH = join(DATA_DIR, "tab-groups.json");
 const LOCK_PATH = REGISTRY_PATH + ".lock";
 // Lock is considered stale after 5s (handled in acquireLock via timeout)
@@ -133,6 +133,7 @@ function readRegistry(): TabGroupRegistry {
     return {
       groups: parsed.groups ?? {},
       tabs: parsed.tabs ?? {},
+      extensionId: parsed.extensionId,
     };
   } catch {
     return { groups: {}, tabs: {} };
