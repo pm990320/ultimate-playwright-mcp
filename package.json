@@ -6,9 +6,9 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "ultimate-playwright-mcp": "./dist/cli.js",
-    "upmcp": "./dist/cli.js",
-    "upmcp-daemon": "./dist/daemon/cli.js"
+    "ultimate-playwright-mcp": "dist/cli.js",
+    "upmcp": "dist/cli.js",
+    "upmcp-daemon": "dist/daemon/cli.js"
   },
   "exports": {
     ".": {
