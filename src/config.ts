@@ -32,6 +32,12 @@ export interface ServerConfig {
    * Chrome executable path (auto-detected if not provided)
    */
   chromeExecutable?: string;
+
+  /**
+   * Download directory for Chrome
+   * Default: ~/Downloads
+   */
+  downloadDir?: string;
 }
 
 export function validateConfig(_config: ServerConfig): void {

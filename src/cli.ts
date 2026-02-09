@@ -34,6 +34,11 @@ program
     "Path to Chrome executable (auto-detected if not provided)",
     process.env.CHROME_EXECUTABLE
   )
+  .option(
+    "--download-dir <path>",
+    "Download directory for Chrome (default: ~/Downloads)",
+    process.env.DOWNLOAD_DIR
+  )
   .action(async (options) => {
     const config: ServerConfig = {
       cdpEndpoint: options.cdpEndpoint,
@@ -41,6 +46,7 @@ program
       chromeUserDataDir: options.chromeUserDataDir,
       chromeExtensions: options.chromeExtensions?.split(",").map((s: string) => s.trim()).filter(Boolean),
       chromeExecutable: options.chromeExecutable,
+      downloadDir: options.downloadDir,
     };
 
     try {

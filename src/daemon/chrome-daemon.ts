@@ -21,6 +21,7 @@ interface ChromeDaemonConfig {
   chromeUserDataDir?: string;
   chromeExtensions?: string[];
   chromeExecutable?: string;
+  downloadDir?: string;
 }
 
 class ChromeDaemon {
@@ -129,7 +130,7 @@ class ChromeDaemon {
       "--disable-background-timer-throttling",
       "--disable-backgrounding-occluded-windows",
       "--disable-renderer-backgrounding",
-      `--download-default-directory=${path.join(os.homedir(), "Downloads")}`,
+      `--download-default-directory=${this.config.downloadDir || path.join(os.homedir(), "Downloads")}`,
     ];
 
     // Add extensions if configured (requires Chrome for Testing)

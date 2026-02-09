@@ -15,6 +15,7 @@ export interface DaemonConfig {
   chromeUserDataDir?: string;
   chromeExtensions?: string[];
   chromeExecutable?: string;
+  downloadDir?: string;
 }
 
 export class DaemonManager {

@@ -124,6 +124,7 @@ export async function runServer(config: ServerConfig) {
       chromeUserDataDir: config.chromeUserDataDir,
       chromeExtensions: config.chromeExtensions,
       chromeExecutable: config.chromeExecutable,
+      downloadDir: config.downloadDir,
     });
     config.cdpEndpoint = DaemonManager.getCdpEndpoint();
   }
