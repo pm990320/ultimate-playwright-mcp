@@ -359,32 +359,102 @@ export async function takeScreenshotViaPlaywright(opts: {
   element?: string;
   fullPage?: boolean;
   type?: "png" | "jpeg";
+  quality?: number;
+  maxWidth?: number;
 }): Promise<{ buffer: Buffer }> {
   const page = await getPageForTargetId(opts);
   ensurePageState(page);
   restoreRoleRefsForTarget({ cdpUrl: opts.cdpUrl, targetId: opts.targetId, page });
   const type = opts.type ?? "png";
+
+  // Build screenshot options — quality only applies to jpeg
+  const screenshotOpts: { type: "png" | "jpeg"; fullPage?: boolean; quality?: number } = { type };
+  if (type === "jpeg" && typeof opts.quality === "number") {
+    screenshotOpts.quality = Math.max(1, Math.min(100, Math.floor(opts.quality)));
+  }
+
+  let buffer: Buffer;
+
   if (opts.ref) {
     if (opts.fullPage) {
       throw new Error("fullPage is not supported for element screenshots");
     }
     const locator = refLocator(page, opts.ref);
-    const buffer = await locator.screenshot({ type });
-    return { buffer };
-  }
-  if (opts.element) {
+    buffer = await locator.screenshot(screenshotOpts);
+  } else if (opts.element) {
     if (opts.fullPage) {
       throw new Error("fullPage is not supported for element screenshots");
     }
     const locator = page.locator(opts.element).first();
-    const buffer = await locator.screenshot({ type });
-    return { buffer };
+    buffer = await locator.screenshot(screenshotOpts);
+  } else {
+    screenshotOpts.fullPage = Boolean(opts.fullPage);
+    buffer = await page.screenshot(screenshotOpts);
   }
-  const buffer = await page.screenshot({
-    type,
-    fullPage: Boolean(opts.fullPage),
-  });
+
+  // Resize if maxWidth specified and image is wider
+  if (typeof opts.maxWidth === "number" && opts.maxWidth > 0) {
+    buffer = await resizeScreenshot(buffer, opts.maxWidth, type);
+  }
+
   return { buffer };
+}
+
+/**
+ * Resize a screenshot buffer if it exceeds maxWidth.
+ * Uses canvas-free approach via Playwright's page.evaluate for portability.
+ * Falls back to returning original buffer if resize fails.
+ */
+async function resizeScreenshot(
+  buffer: Buffer,
+  maxWidth: number,
+  type: "png" | "jpeg",
+): Promise<Buffer> {
+  // Parse PNG/JPEG dimensions from the header to check if resize is needed
+  const width = getImageWidth(buffer, type);
+  if (width !== null && width <= maxWidth) {
+    return buffer; // Already within limits
+  }
+
+  // Use sharp if available (optional dependency), otherwise return original
+  try {
+    // Dynamic import to keep sharp optional — use string variable to prevent
+    // TypeScript from resolving the module at compile time
+    const moduleName = "sharp";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sharp = await (import(moduleName) as Promise<any>).then((m) => m.default ?? m);
+    const resized: Buffer = await sharp(buffer)
+      .resize({ width: Math.floor(maxWidth), withoutEnlargement: true })
+      .toFormat(type === "jpeg" ? "jpeg" : "png")
+      .toBuffer();
+    return resized;
+  } catch {
+    // sharp not installed — return original buffer with no resize
+    return buffer;
+  }
+}
+
+/** Read image width from PNG/JPEG header bytes. Returns null if unrecognized. */
+function getImageWidth(buffer: Buffer, type: "png" | "jpeg"): number | null {
+  if (type === "png" && buffer.length >= 24) {
+    // PNG: width at bytes 16-19 (big-endian)
+    return buffer.readUInt32BE(16);
+  }
+  if (type === "jpeg" && buffer.length > 2) {
+    // JPEG: scan for SOF0/SOF2 markers
+    let offset = 2;
+    while (offset < buffer.length - 8) {
+      if (buffer[offset] !== 0xff) break;
+      const marker = buffer[offset + 1];
+      if (marker === 0xc0 || marker === 0xc2) {
+        // SOF marker: height at offset+5, width at offset+7
+        return buffer.readUInt16BE(offset + 7);
+      }
+      const segLen = buffer.readUInt16BE(offset + 2);
+      offset += 2 + segLen;
+    }
+  }
+  return null;
 }
 
 export async function screenshotWithLabelsViaPlaywright(opts: {

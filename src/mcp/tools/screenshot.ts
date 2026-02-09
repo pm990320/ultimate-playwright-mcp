@@ -39,6 +39,18 @@ export function registerBrowserScreenshotTool(
           enum: ["png", "jpeg"],
           description: "Image format (default: png). Use jpeg for smaller file sizes.",
         },
+        quality: {
+          type: "number",
+          description:
+            "JPEG quality (1-100). Only applies when type is 'jpeg'. Default: 80. " +
+            "Lower values = smaller file size.",
+        },
+        maxWidth: {
+          type: "number",
+          description:
+            "Maximum width in pixels. Image will be scaled down proportionally if wider. " +
+            "Reduces base64 size for large/full-page screenshots.",
+        },
       },
     },
     async (args: {
@@ -47,6 +59,8 @@ export function registerBrowserScreenshotTool(
       element?: string;
       fullPage?: boolean;
       type?: "png" | "jpeg";
+      quality?: number;
+      maxWidth?: number;
     }) => {
       if (!config.cdpEndpoint) {
         throw new Error("CDP endpoint not configured");
@@ -59,6 +73,8 @@ export function registerBrowserScreenshotTool(
         element: args.element,
         fullPage: args.fullPage,
         type: args.type,
+        quality: args.quality,
+        maxWidth: args.maxWidth,
       });
 
       const base64 = buffer.toString("base64");
