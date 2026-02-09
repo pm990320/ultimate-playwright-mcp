@@ -99,6 +99,53 @@ class ChromeDaemon {
     }
   }
 
+  /**
+   * Strip automation markers from the browser user agent via CDP.
+   * Runs once after Chrome starts to make it look like a normal browser.
+   */
+  private async applyStealthUserAgent() {
+    try {
+      const res = await fetch(`http://localhost:${CDP_PORT}/json/version`, {
+        signal: AbortSignal.timeout(2000),
+      });
+      const info = await res.json() as { webSocketDebuggerUrl?: string; "User-Agent"?: string };
+      const wsUrl = info.webSocketDebuggerUrl;
+      const ua = info["User-Agent"];
+      if (!wsUrl || !ua) return;
+
+      // Clean user agent: remove "Headless", "Chrome for Testing", automation markers
+      const cleanUa = ua
+        .replace(/HeadlessChrome/g, "Chrome")
+        .replace(/ Chrome for Testing/g, " Chrome")
+        .replace(/ Headless/g, "");
+
+      if (cleanUa === ua) {
+        this.log("User agent already clean");
+        return;
+      }
+
+      // Connect via WebSocket and send CDP command
+      const { WebSocket } = await import("ws");
+      const ws = new WebSocket(wsUrl);
+      await new Promise<void>((resolve, reject) => {
+        ws.on("open", () => {
+          ws.send(JSON.stringify({
+            id: 1,
+            method: "Network.setUserAgentOverride",
+            params: { userAgent: cleanUa },
+          }));
+          // Give it a moment then close
+          setTimeout(() => { ws.close(); resolve(); }, 200);
+        });
+        ws.on("error", reject);
+        setTimeout(reject, 3000);
+      });
+      this.log(`Stealth UA applied: ${cleanUa.substring(0, 80)}...`);
+    } catch (err) {
+      this.log(`WARNING: Failed to apply stealth UA: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   private async startChrome() {
     const chromePath = this.config.chromeExecutable || this.findChromePath();
     if (!chromePath) {
@@ -131,6 +178,11 @@ class ChromeDaemon {
       "--disable-backgrounding-occluded-windows",
       "--disable-renderer-backgrounding",
       `--download-default-directory=${this.config.downloadDir || path.join(os.homedir(), "Downloads")}`,
+      // Stealth: make browser look like a normal user session
+      "--disable-blink-features=AutomationControlled",  // removes navigator.webdriver=true
+      "--disable-features=AutomationControllerForTesting",
+      "--disable-infobars",                              // removes "Chrome is being controlled" bar
+      "--disable-automation",                            // disables automation extension
     ];
 
     // Add extensions if configured (requires Chrome for Testing)
@@ -174,6 +226,7 @@ class ChromeDaemon {
       await new Promise((resolve) => setTimeout(resolve, 500));
       if (await this.isChromeReachable()) {
         this.log("Chrome is ready");
+        await this.applyStealthUserAgent();
         return;
       }
     }
