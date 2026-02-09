@@ -23,6 +23,7 @@ import os from "node:os";
 import { formatErrorMessage } from "../utils/errors.js";
 import { getHeadersWithAuth } from "./cdp.helpers.js";
 import { getChromeWebSocketUrl } from "./chrome.js";
+import { STEALTH_SCRIPT } from "./stealth.js";
 
 // ---------- Persistent ref store (file-based) ----------
 const REFS_STORE_DIR = path.join(os.tmpdir(), "ultimate-playwright-mcp-refs");
@@ -372,6 +373,11 @@ function observeContext(context: BrowserContext) {
   }
   observedContexts.add(context);
   ensureContextState(context);
+
+  // Inject stealth script into every new page in this context
+  context.addInitScript(STEALTH_SCRIPT).catch(() => {
+    // Non-fatal: some contexts may not support addInitScript
+  });
 
   for (const page of context.pages()) {
     ensurePageState(page);
