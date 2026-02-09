@@ -1,6 +1,35 @@
 # Ultimate Playwright MCP
 
+[![npm version](https://img.shields.io/npm/v/ultimate-playwright-mcp)](https://www.npmjs.com/package/ultimate-playwright-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/ultimate-playwright-mcp)](https://www.npmjs.com/package/ultimate-playwright-mcp)
+[![license](https://img.shields.io/npm/l/ultimate-playwright-mcp)](https://github.com/pm990320/ultimate-playwright-mcp/blob/main/LICENSE)
+[![CI](https://github.com/pm990320/ultimate-playwright-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/pm990320/ultimate-playwright-mcp/actions/workflows/ci.yml)
+
 Multi-agent Playwright MCP server with tab isolation via `targetId`. Allows multiple Claude instances (or other MCP clients) to share a single Chrome browser while maintaining isolated tab groups.
+
+## Why Ultimate Playwright?
+
+The official [`@playwright/mcp`](https://github.com/nickmccurdy/playwright-mcp) gives you browser control for a **single agent**. But what if you have **multiple agents** sharing one browser?
+
+**Ultimate Playwright MCP** solves this with **tab group isolation**:
+
+- 🔀 **Multi-agent tab groups** — Each agent creates a `groupId` and only sees its own tabs
+- 🍪 **Shared cookies & sessions** — All agents share the same BrowserContext (log in once, everyone's authenticated)
+- 🎨 **Visual Chrome tab groups** — Companion extension organizes tabs into color-coded Chrome tab groups
+- 💾 **Persistent registry** — Tab groups survive MCP server restarts (`~/.ultimate-playwright-mcp/tab-groups.json`)
+- 🔌 **Connect to existing Chrome** — Uses CDP to attach to your running Chrome (keeps your profile, extensions, bookmarks)
+
+### Comparison
+
+| Feature | **ultimate-playwright-mcp** | @playwright/mcp | browser-use-mcp |
+|---|---|---|---|
+| Multi-agent tab isolation | ✅ Tab groups with `groupId` | ❌ Single session | ❌ Single session |
+| Shared cookies across agents | ✅ Same BrowserContext | N/A | N/A |
+| Connect to existing Chrome | ✅ CDP | ❌ Launches new browser | ❌ Launches new browser |
+| Visual tab groups in Chrome | ✅ Extension | ❌ | ❌ |
+| Persistent tab registry | ✅ Survives restarts | ❌ | ❌ |
+| Accessibility tree snapshots | ✅ Element refs (e1, e2…) | ✅ | ❌ Screenshot-based |
+| Open source | ✅ MIT | ✅ Apache-2.0 | ✅ MIT |
 
 ## Features
 
@@ -179,6 +208,37 @@ survives MCP server restarts.
    │ Alice   │ │  Bob    │ │ Charlie │
    │ (Claude)│ │ (Claude)│ │ (Cursor)│
    └─────────┘ └─────────┘ └─────────┘
+```
+
+## MCP Configuration
+
+### Cursor / Windsurf / Generic MCP Client
+
+```json
+{
+  "mcpServers": {
+    "ultimate-playwright": {
+      "command": "npx",
+      "args": ["ultimate-playwright-mcp", "--cdp-endpoint", "http://localhost:9222"]
+    }
+  }
+}
+```
+
+### With Environment Variable
+
+```json
+{
+  "mcpServers": {
+    "ultimate-playwright": {
+      "command": "npx",
+      "args": ["ultimate-playwright-mcp"],
+      "env": {
+        "CDP_ENDPOINT": "http://localhost:9222"
+      }
+    }
+  }
+}
 ```
 
 ## CLI Options
