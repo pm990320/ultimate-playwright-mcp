@@ -13,7 +13,7 @@ import { createHash } from "node:crypto";
 import { resolve as resolvePath } from "node:path";
 import WebSocket from "ws";
 import { getHeadersWithAuth } from "./cdp.helpers.js";
-import { getExtensionId as getStoredExtensionId, setExtensionId as storeExtensionId } from "./tab-groups.js";
+// Extension ID is cached in-memory (no file dependency)
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -72,7 +72,7 @@ export function computeExtensionId(extensionPath: string): string {
 export function seedExtensionIdFromPath(extensionPath: string): void {
   const id = computeExtensionId(extensionPath);
   cachedExtensionId = id;
-  storeExtensionId(id);
+  
 }
 
 async function findExtensionServiceWorker(cdpUrl: string): Promise<string | null> {
@@ -129,7 +129,7 @@ async function findExtensionServiceWorker(cdpUrl: string): Promise<string | null
           const extIdMatch = candidate.url.match(/chrome-extension:\/\/([a-z]+)\//);
           if (extIdMatch) {
             cachedExtensionId = extIdMatch[1];
-            storeExtensionId(cachedExtensionId);
+            
           }
           return cachedSwUrl;
         }
@@ -140,7 +140,7 @@ async function findExtensionServiceWorker(cdpUrl: string): Promise<string | null
 
     // If we have a cached or persisted extension ID, try to wake the dormant SW
     // by sending it a message from any available extension SW
-    const extId = cachedExtensionId || getStoredExtensionId();
+    const extId = cachedExtensionId;
     if (extId) {
       cachedExtensionId = extId;
       // Use ALL extension SWs (not just candidates) as potential senders
@@ -168,7 +168,7 @@ async function findExtensionServiceWorker(cdpUrl: string): Promise<string | null
                 const m = candidate.url.match(/chrome-extension:\/\/([a-z]+)\//);
                 if (m) {
                   cachedExtensionId = m[1];
-                  storeExtensionId(m[1]);
+                  
                 }
                 return cachedSwUrl;
               }
@@ -291,7 +291,7 @@ async function probeForGroupTabs(wsUrl: string): Promise<boolean> {
 
 // ── Evaluate JS on the extension service worker ────────────────────────────
 
-async function evalOnExtension(
+export async function evalOnExtension(
   cdpUrl: string,
   expression: string,
   timeout = 10_000,

@@ -1,12 +1,13 @@
 /**
- * browser_tabs tool - manage browser tabs with targetId-based isolation and tab group support
+ * browser_tabs tool - manage browser tabs with targetId-based isolation and tab group support.
+ *
+ * Tab group state is stored in the companion extension — no external JSON files.
  */
 
 import type { ServerConfig } from "../../config.js";
 import type { RegisterToolFn } from "../types.js";
 import {
   listPagesViaPlaywright,
-  createPageViaPlaywright,
   closePageByTargetIdViaPlaywright,
   focusPageByTargetIdViaPlaywright,
 } from "../../browser/pw-session.js";
@@ -17,11 +18,9 @@ import {
   getGroupForTab,
   getTabGroup,
   pruneStaleTargets,
-  setChromeGroupId,
   getChromeTabId,
 } from "../../browser/tab-groups.js";
 import {
-  groupTabsVisually,
   isTabGrouperAvailable,
   createTabViaExtension,
   closeTabViaExtension,
@@ -29,18 +28,18 @@ import {
 
 export function registerBrowserTabsTool(
   register: RegisterToolFn,
-  config: ServerConfig
+  config: ServerConfig,
 ) {
   register(
     "browser_tabs",
     "Manage browser tabs. When using tab groups (recommended for multi-user), pass groupId to " +
-    "scope operations to your group's tabs only.\n\n" +
-    "Actions:\n" +
-    "- 'list': Show tabs. With groupId → only your group's tabs. Without → all tabs.\n" +
-    "- 'new': Create a tab. **Requires groupId** — tab is added to that group. Returns targetId.\n" +
-    "- 'close': Close a tab by index or targetId.\n" +
-    "- 'select': Focus a tab by index or targetId.\n\n" +
-    "⚡ IMPORTANT: Always create a tab group first with browser_tab_group, then use the groupId here.",
+      "scope operations to your group's tabs only.\n\n" +
+      "Actions:\n" +
+      "- 'list': Show tabs. With groupId → only your group's tabs. Without → all tabs.\n" +
+      "- 'new': Create a tab. **Requires groupId** — tab is added to that group. Returns targetId.\n" +
+      "- 'close': Close a tab by index or targetId.\n" +
+      "- 'select': Focus a tab by index or targetId.\n\n" +
+      "⚡ IMPORTANT: Always create a tab group first with browser_tab_group, then use the groupId here.",
     {
       type: "object",
       properties: {
@@ -51,7 +50,8 @@ export function registerBrowserTabsTool(
         },
         groupId: {
           type: "string",
-          description: "Tab group ID to scope this operation to (from browser_tab_group). " +
+          description:
+            "Tab group name to scope this operation to (from browser_tab_group). " +
             "Recommended for multi-user isolation.",
         },
         url: {
@@ -60,7 +60,8 @@ export function registerBrowserTabsTool(
         },
         index: {
           type: "number",
-          description: "Tab index for 'close' or 'select' actions (relative to group if groupId is set)",
+          description:
+            "Tab index for 'close' or 'select' actions (relative to group if groupId is set)",
         },
         targetId: {
           type: "string",
@@ -81,39 +82,43 @@ export function registerBrowserTabsTool(
       }
 
       const { action, groupId, url, index, targetId } = args;
+      const cdp = config.cdpEndpoint;
 
       // Helper: get tabs scoped to group (or all tabs)
       async function getScopedTabs() {
-        const allTabs = await listPagesViaPlaywright({ cdpUrl: config.cdpEndpoint! });
+        const allTabs = await listPagesViaPlaywright({ cdpUrl: cdp });
 
-        // Prune stale entries from registry
-        const liveIds = new Set(allTabs.map((t) => t.targetId));
-        pruneStaleTargets(liveIds);
+        // Prune stale entries
+        try {
+          const liveIds = allTabs.map((t) => t.targetId);
+          await pruneStaleTargets(cdp, liveIds);
+        } catch {
+          // Best-effort
+        }
 
         if (!groupId) {
           return allTabs;
         }
 
         // Validate group exists
-        const group = getTabGroup(groupId);
+        const group = await getTabGroup(cdp, groupId);
         if (!group) {
           throw new Error(
             `Tab group not found: ${groupId}. Create one first with browser_tab_group.`,
           );
         }
 
-        const groupTargetIds = new Set(getTabsInGroup(groupId));
+        const groupTargetIds = new Set(await getTabsInGroup(cdp, groupId));
         return allTabs.filter((t) => groupTargetIds.has(t.targetId));
       }
 
-      // Helper: resolve target from index or targetId, respecting group scope
+      // Helper: resolve target from index or targetId
       async function resolveTarget(
         scopedTabs: Array<{ targetId: string; title: string; url: string }>,
       ): Promise<string> {
         if (targetId) {
-          // If groupId set, verify this tab belongs to the group
           if (groupId) {
-            const tabGroup = getGroupForTab(targetId);
+            const tabGroup = await getGroupForTab(cdp, targetId);
             if (tabGroup !== groupId) {
               throw new Error(
                 `Tab ${targetId} does not belong to group ${groupId}.`,
@@ -126,8 +131,7 @@ export function registerBrowserTabsTool(
           const tab = scopedTabs[index];
           if (!tab) {
             throw new Error(
-              `No tab at index ${index}` +
-                (groupId ? ` in group ${groupId}` : ""),
+              `No tab at index ${index}` + (groupId ? ` in group ${groupId}` : ""),
             );
           }
           return tab.targetId;
@@ -145,35 +149,38 @@ export function registerBrowserTabsTool(
             return "**No tabs open.**";
           }
 
-          const output = tabs
-            .map((tab, i) => {
-              const groupLabel = !groupId ? (() => {
-                const g = getGroupForTab(tab.targetId);
-                const info = g ? getTabGroup(g) : null;
-                return info ? ` [${info.name}]` : " [ungrouped]";
-              })() : "";
-              return (
-                `[${i}] **targetId: ${tab.targetId}**${groupLabel}\n` +
+          const output: string[] = [];
+          for (let i = 0; i < tabs.length; i++) {
+            const tab = tabs[i];
+            let groupLabel = "";
+            if (!groupId) {
+              try {
+                const g = await getGroupForTab(cdp, tab.targetId);
+                groupLabel = g ? ` [${g}]` : " [ungrouped]";
+              } catch {
+                groupLabel = " [ungrouped]";
+              }
+            }
+            output.push(
+              `[${i}] **targetId: ${tab.targetId}**${groupLabel}\n` +
                 `    ${tab.title || "(no title)"}\n` +
-                `    ${tab.url}`
-              );
-            })
-            .join("\n\n");
-
-          const label = groupId ? `in group ${groupId}` : "total";
-          return `**${tabs.length} tab(s)** ${label}\n\n${output}`;
-        }
-
-        case "new": {
-          // groupId is required for creating tabs
-          if (!groupId) {
-            throw new Error(
-              "groupId is required when creating new tabs. " +
-              "Create a tab group first with browser_tab_group, then pass the groupId here.",
+                `    ${tab.url}`,
             );
           }
 
-          const group = getTabGroup(groupId);
+          const label = groupId ? `in group ${groupId}` : "total";
+          return `**${tabs.length} tab(s)** ${label}\n\n${output.join("\n\n")}`;
+        }
+
+        case "new": {
+          if (!groupId) {
+            throw new Error(
+              "groupId is required when creating new tabs. " +
+                "Create a tab group first with browser_tab_group, then pass the groupId here.",
+            );
+          }
+
+          const group = await getTabGroup(cdp, groupId);
           if (!group) {
             throw new Error(
               `Tab group not found: ${groupId}. Create one first with browser_tab_group.`,
@@ -184,48 +191,31 @@ export function registerBrowserTabsTool(
           let resultTargetId: string;
           let chromeTabId: number | undefined;
 
-          // Prefer creating via extension (gives us Chrome tab ID directly for reliable grouping)
-          const hasExtension = await isTabGrouperAvailable(config.cdpEndpoint!);
+          // Always try extension first (gives Chrome tab ID for grouping)
+          const hasExtension = await isTabGrouperAvailable(cdp);
           if (hasExtension) {
             try {
-              const extTab = await createTabViaExtension(config.cdpEndpoint!, tabUrl);
+              const extTab = await createTabViaExtension(cdp, tabUrl);
               resultTargetId = extTab.targetId;
               chromeTabId = extTab.chromeTabId;
             } catch {
-              // Fall back to Playwright
-              const pwTab = await createPageViaPlaywright({
-                cdpUrl: config.cdpEndpoint,
-                url: tabUrl,
-              });
+              // Fall back to Playwright (no grouping possible)
+              const { createPageViaPlaywright } = await import("../../browser/pw-session.js");
+              const pwTab = await createPageViaPlaywright({ cdpUrl: cdp, url: tabUrl });
               resultTargetId = pwTab.targetId;
             }
           } else {
-            const pwTab = await createPageViaPlaywright({
-              cdpUrl: config.cdpEndpoint,
-              url: tabUrl,
-            });
+            const { createPageViaPlaywright } = await import("../../browser/pw-session.js");
+            const pwTab = await createPageViaPlaywright({ cdpUrl: cdp, url: tabUrl });
             resultTargetId = pwTab.targetId;
           }
 
-          // Associate with group in registry (include Chrome tab ID if available)
-          addTabToGroup(resultTargetId, groupId, chromeTabId);
-
-          // Add to Chrome visual group
+          // Register tab in extension (also handles Chrome visual grouping)
           if (chromeTabId !== undefined) {
             try {
-              const color = group.color || "grey";
-              const result = await groupTabsVisually(
-                config.cdpEndpoint!,
-                [chromeTabId],
-                group.name,
-                color,
-                group.chromeGroupId,
-              );
-              if (!group.chromeGroupId) {
-                setChromeGroupId(groupId, result.groupId);
-              }
+              await addTabToGroup(cdp, resultTargetId, groupId, chromeTabId);
             } catch {
-              // Visual grouping is best-effort
+              // Registration failed — tab is still created but ungrouped
             }
           }
 
@@ -242,28 +232,30 @@ export function registerBrowserTabsTool(
           const tid = await resolveTarget(tabs);
 
           // Get stored Chrome tab ID for clean closure
-          const storedChromeTabId = getChromeTabId(tid);
-
-          // Close the tab — prefer extension if we have the Chrome tab ID
-          if (storedChromeTabId !== undefined) {
-            try {
-              await closeTabViaExtension(config.cdpEndpoint!, storedChromeTabId);
-            } catch {
-              // Fall back to Playwright
-              await closePageByTargetIdViaPlaywright({
-                cdpUrl: config.cdpEndpoint,
-                targetId: tid,
-              });
-            }
-          } else {
-            await closePageByTargetIdViaPlaywright({
-              cdpUrl: config.cdpEndpoint,
-              targetId: tid,
-            });
+          let storedChromeTabId: number | null = null;
+          try {
+            storedChromeTabId = await getChromeTabId(cdp, tid);
+          } catch {
+            // Extension may not be available
           }
 
-          // Remove from registry
-          removeTabFromGroup(tid);
+          // Close via extension if we have the Chrome tab ID
+          if (storedChromeTabId !== null) {
+            try {
+              await closeTabViaExtension(cdp, storedChromeTabId);
+            } catch {
+              await closePageByTargetIdViaPlaywright({ cdpUrl: cdp, targetId: tid });
+            }
+          } else {
+            await closePageByTargetIdViaPlaywright({ cdpUrl: cdp, targetId: tid });
+          }
+
+          // Unregister from extension
+          try {
+            await removeTabFromGroup(cdp, tid);
+          } catch {
+            // Best-effort
+          }
 
           return `**Tab closed:** ${tid}`;
         }
@@ -272,10 +264,7 @@ export function registerBrowserTabsTool(
           const tabs = await getScopedTabs();
           const tid = await resolveTarget(tabs);
 
-          await focusPageByTargetIdViaPlaywright({
-            cdpUrl: config.cdpEndpoint,
-            targetId: tid,
-          });
+          await focusPageByTargetIdViaPlaywright({ cdpUrl: cdp, targetId: tid });
 
           return `**Tab focused:** ${tid}`;
         }
@@ -283,6 +272,6 @@ export function registerBrowserTabsTool(
         default:
           throw new Error(`Unknown action: ${action}`);
       }
-    }
+    },
   );
 }
