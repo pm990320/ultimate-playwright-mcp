@@ -48,6 +48,7 @@ Browser automation through a shared Chrome instance with per-session tab isolati
 | `browser_hover` | `ref`, `targetId` | |
 | `browser_press_key` | `key`, `targetId` | Keys: Enter, Escape, Tab, ArrowDown, etc. |
 | `browser_fill_form` | `fields` (array of {ref, type, value}), `targetId` | Batch fill multiple fields |
+| `browser_evaluate` | `expression`, `targetId`, `ref` (optional) | Run JS in page context — for portal/overlay elements invisible to snapshot |
 | `browser_wait_for` | `text`, `textGone`, `selector`, `url`, `loadState`, `timeMs`, `targetId` | |
 
 ## Key Concepts

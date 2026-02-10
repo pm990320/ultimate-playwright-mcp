@@ -35,7 +35,7 @@ export interface ServerConfig {
 
   /**
    * Download directory for Chrome
-   * Default: ~/Downloads
+   * Default: ~/.ultimate-playwright-mcp/downloads
    */
   downloadDir?: string;
 }

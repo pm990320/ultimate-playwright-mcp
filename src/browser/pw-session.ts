@@ -367,6 +367,28 @@ export function ensurePageState(page: Page): PageState {
   return state;
 }
 
+const DEFAULT_DOWNLOAD_DIR = path.join(os.homedir(), ".ultimate-playwright-mcp", "downloads");
+
+/**
+ * Enable downloads for a page via CDP Page.setDownloadBehavior.
+ * This supplements the browser-level setting from the daemon.
+ */
+async function enablePageDownloads(page: Page): Promise<void> {
+  try {
+    const session = await page.context().newCDPSession(page);
+    try {
+      await session.send("Page.setDownloadBehavior" as never, {
+        behavior: "allow",
+        downloadPath: DEFAULT_DOWNLOAD_DIR,
+      } as never);
+    } finally {
+      await session.detach().catch(() => {});
+    }
+  } catch {
+    // Non-fatal: some pages (e.g., about:blank) may not support CDP sessions
+  }
+}
+
 function observeContext(context: BrowserContext) {
   if (observedContexts.has(context)) {
     return;
@@ -381,8 +403,12 @@ function observeContext(context: BrowserContext) {
 
   for (const page of context.pages()) {
     ensurePageState(page);
+    enablePageDownloads(page).catch(() => {});
   }
-  context.on("page", (page) => ensurePageState(page));
+  context.on("page", (page) => {
+    ensurePageState(page);
+    enablePageDownloads(page).catch(() => {});
+  });
 }
 
 export function ensureContextState(context: BrowserContext): ContextState {

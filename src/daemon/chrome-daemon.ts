@@ -168,6 +168,56 @@ class ChromeDaemon {
     }
   }
 
+  /**
+   * Enable file downloads via CDP Browser.setDownloadBehavior.
+   * Chrome's --download-default-directory flag alone isn't sufficient
+   * for CDP-controlled browsers — the download behavior must be
+   * explicitly set via the protocol.
+   */
+  private async enableDownloads() {
+    const downloadPath = this.config.downloadDir || path.join(os.homedir(), ".ultimate-playwright-mcp", "downloads");
+
+    // Ensure the download directory exists
+    if (!fs.existsSync(downloadPath)) {
+      fs.mkdirSync(downloadPath, { recursive: true });
+      this.log(`Created download directory: ${downloadPath}`);
+    }
+
+    try {
+      const res = await fetch(`http://localhost:${CDP_PORT}/json/version`, {
+        signal: AbortSignal.timeout(2000),
+      });
+      const info = await res.json() as { webSocketDebuggerUrl?: string };
+      const wsUrl = info.webSocketDebuggerUrl;
+      if (!wsUrl) {
+        this.log("WARNING: No webSocketDebuggerUrl — cannot enable downloads");
+        return;
+      }
+
+      const { WebSocket } = await import("ws");
+      const ws = new WebSocket(wsUrl);
+      await new Promise<void>((resolve, reject) => {
+        ws.on("open", () => {
+          ws.send(JSON.stringify({
+            id: 1,
+            method: "Browser.setDownloadBehavior",
+            params: {
+              behavior: "allow",
+              downloadPath,
+              eventsEnabled: true,
+            },
+          }));
+          setTimeout(() => { ws.close(); resolve(); }, 200);
+        });
+        ws.on("error", reject);
+        setTimeout(reject, 3000);
+      });
+      this.log(`Downloads enabled → ${downloadPath}`);
+    } catch (err) {
+      this.log(`WARNING: Failed to enable downloads: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   private async startChrome() {
     const chromePath = this.config.chromeExecutable || this.findChromePath();
     if (!chromePath) {
@@ -199,7 +249,7 @@ class ChromeDaemon {
       "--disable-background-timer-throttling",
       "--disable-backgrounding-occluded-windows",
       "--disable-renderer-backgrounding",
-      `--download-default-directory=${this.config.downloadDir || path.join(os.homedir(), "Downloads")}`,
+      `--download-default-directory=${this.config.downloadDir || path.join(os.homedir(), ".ultimate-playwright-mcp", "downloads")}`,
       // Stealth: make browser look like a normal user session
       "--disable-blink-features=AutomationControlled",  // removes navigator.webdriver=true
       "--disable-features=AutomationControllerForTesting",
@@ -254,6 +304,7 @@ class ChromeDaemon {
       if (await this.isChromeReachable()) {
         this.log("Chrome is ready");
         await this.applyStealthUserAgent();
+        await this.enableDownloads();
         return;
       }
     }
