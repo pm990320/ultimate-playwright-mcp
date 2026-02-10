@@ -9,8 +9,12 @@ import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { fileURLToPath } from "node:url";
 import { globSync } from "glob";
 import { resolveExtensions } from "../utils/extension-installer.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const DAEMON_LOCK_FILE = path.join(os.tmpdir(), "ultimate-playwright-mcp-daemon.lock");
 const DAEMON_LOG_FILE = path.join(os.tmpdir(), "ultimate-playwright-mcp-daemon.log");
@@ -234,11 +238,6 @@ class ChromeDaemon {
       this.log(`Created Chrome profile directory: ${userDataDir}`);
     }
 
-    // Enable developer mode for extensions if loading extensions
-    if (this.config.chromeExtensions && this.config.chromeExtensions.length > 0) {
-      this.enableDeveloperMode(userDataDir);
-    }
-
     const args = [
       `--remote-debugging-port=${CDP_PORT}`,
       `--user-data-dir=${userDataDir}`,
@@ -257,23 +256,37 @@ class ChromeDaemon {
       "--disable-automation",                            // disables automation extension
     ];
 
-    // Add extensions if configured (requires Chrome for Testing)
-    if (this.config.chromeExtensions && this.config.chromeExtensions.length > 0) {
-      try {
-        const extensionPaths = await resolveExtensions(this.config.chromeExtensions);
-        if (extensionPaths.length > 0) {
-          const pathsStr = extensionPaths.join(",");
-          args.push(`--load-extension=${pathsStr}`);
-          this.log(`Loading extensions: ${pathsStr}`);
+    // Always include bundled tab-grouper extension + any user-configured extensions
+    {
+      const allExtensions = [...(this.config.chromeExtensions || [])];
 
-          // Warn if using branded Chrome 137+
-          if (chromePath.includes("Google Chrome.app") && !chromePath.includes("Chrome for Testing")) {
-            this.log("WARNING: Using branded Chrome may not support --load-extension in version 137+");
-            this.log("         Recommend installing Chrome for Testing for guaranteed extension support");
+      // Auto-include bundled tab-grouper extension
+      const bundledTabGrouper = path.join(__dirname, "..", "..", "extensions", "tab-grouper");
+      if (fs.existsSync(bundledTabGrouper) && !allExtensions.some(e => e.includes("tab-grouper"))) {
+        allExtensions.push(bundledTabGrouper);
+        this.log(`Auto-including bundled tab-grouper extension`);
+      }
+
+      if (allExtensions.length > 0) {
+        // Ensure developer mode is enabled for extensions
+        this.enableDeveloperMode(userDataDir);
+
+        try {
+          const extensionPaths = await resolveExtensions(allExtensions);
+          if (extensionPaths.length > 0) {
+            const pathsStr = extensionPaths.join(",");
+            args.push(`--load-extension=${pathsStr}`);
+            this.log(`Loading extensions: ${pathsStr}`);
+
+            // Warn if using branded Chrome 137+
+            if (chromePath.includes("Google Chrome.app") && !chromePath.includes("Chrome for Testing")) {
+              this.log("WARNING: Using branded Chrome may not support --load-extension in version 137+");
+              this.log("         Recommend installing Chrome for Testing for guaranteed extension support");
+            }
           }
+        } catch (error) {
+          this.log(`WARNING: Failed to resolve extensions: ${error instanceof Error ? error.message : String(error)}`);
         }
-      } catch (error) {
-        this.log(`WARNING: Failed to resolve extensions: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 
