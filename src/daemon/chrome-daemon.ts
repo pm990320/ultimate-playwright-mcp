@@ -27,6 +27,7 @@ interface ChromeDaemonConfig {
 class ChromeDaemon {
   private chromeProcess: ChildProcess | null = null;
   private shuttingDown = false;
+  private monitorInterval: NodeJS.Timeout | null = null;
   private config: ChromeDaemonConfig;
 
   constructor(config?: ChromeDaemonConfig) {
@@ -46,7 +47,19 @@ class ChromeDaemon {
     // Handle cleanup on exit
     process.on("SIGINT", () => this.shutdown());
     process.on("SIGTERM", () => this.shutdown());
+    process.on("SIGHUP", () => this.shutdown());
+    process.on("SIGQUIT", () => this.shutdown());
     process.on("exit", () => this.cleanup());
+
+    // Handle unexpected errors to ensure cleanup
+    process.on("uncaughtException", (err) => {
+      this.log(`Uncaught exception: ${err.message}`);
+      this.shutdown();
+    });
+    process.on("unhandledRejection", (reason) => {
+      this.log(`Unhandled rejection: ${reason}`);
+      this.shutdown();
+    });
 
     this.log("Chrome daemon started");
 
@@ -54,7 +67,7 @@ class ChromeDaemon {
     await this.ensureChromeRunning();
 
     // Monitor Chrome process
-    setInterval(() => this.ensureChromeRunning(), 5000);
+    this.monitorInterval = setInterval(() => this.ensureChromeRunning(), 5000);
   }
 
   private isDaemonRunning(): boolean {
@@ -79,6 +92,10 @@ class ChromeDaemon {
   }
 
   private async ensureChromeRunning() {
+    if (this.shuttingDown) {
+      return; // Don't start Chrome during shutdown
+    }
+
     if (this.chromeProcess && !this.chromeProcess.killed) {
       return; // Chrome is running
     }
@@ -228,6 +245,11 @@ class ChromeDaemon {
 
     // Wait for Chrome to be ready
     for (let i = 0; i < 30; i++) {
+      if (this.shuttingDown) {
+        this.log("Shutdown requested, aborting Chrome startup wait");
+        return;
+      }
+
       await new Promise((resolve) => setTimeout(resolve, 500));
       if (await this.isChromeReachable()) {
         this.log("Chrome is ready");
@@ -334,6 +356,12 @@ class ChromeDaemon {
     this.shuttingDown = true;
 
     this.log("Shutting down daemon...");
+
+    // Clear the monitoring interval to allow graceful exit
+    if (this.monitorInterval) {
+      clearInterval(this.monitorInterval);
+      this.monitorInterval = null;
+    }
 
     if (this.chromeProcess && !this.chromeProcess.killed) {
       this.log("Stopping Chrome...");

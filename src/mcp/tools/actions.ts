@@ -11,6 +11,7 @@ import {
   pressKeyViaPlaywright,
   fillFormViaPlaywright,
   waitForViaPlaywright,
+  evaluateViaPlaywright,
   type BrowserFormField,
 } from "../../browser/pw-tools-interactions.js";
 
@@ -273,6 +274,54 @@ export function registerBrowserActionTools(
       ].filter(Boolean);
 
       return `**Wait completed** for ${conditions.join(", ")}`;
+    }
+  );
+
+  // browser_evaluate
+  register(
+    "browser_evaluate",
+    "Execute JavaScript in the page context via Playwright's page.evaluate(). Use for interacting with elements not in the accessibility snapshot (portal divs, framework overlays, shadow DOM). Can run arbitrary JS — click hidden elements, extract data, manipulate the DOM. Optionally scope to a specific element via ref.",
+    {
+      type: "object",
+      properties: {
+        expression: {
+          type: "string",
+          description:
+            "JavaScript expression or function body to evaluate in the browser. " +
+            "Can be a simple expression like `document.title` or a function like " +
+            "`() => document.querySelector('.menu').click()`. " +
+            "If ref is provided, receives the element as first argument: `(el) => el.textContent`.",
+        },
+        ref: {
+          type: "string",
+          description:
+            "Optional element reference from snapshot (e.g., 'e1'). " +
+            "If provided, the expression receives the DOM element as its first argument.",
+        },
+        targetId: {
+          type: "string",
+          description: "Target ID of the tab",
+        },
+      },
+      required: ["expression"],
+    },
+    async (args: { expression: string; ref?: string; targetId?: string }) => {
+      if (!config.cdpEndpoint) throw new Error("CDP endpoint not configured");
+
+      const result = await evaluateViaPlaywright({
+        cdpUrl: config.cdpEndpoint,
+        targetId: args.targetId,
+        fn: args.expression,
+        ref: args.ref,
+      });
+
+      // Format the result for display
+      if (result === undefined) return "**Evaluated** — returned `undefined`";
+      if (result === null) return "**Evaluated** — returned `null`";
+      if (typeof result === "string") return `**Evaluated** — returned: "${result}"`;
+      if (typeof result === "number" || typeof result === "boolean")
+        return `**Evaluated** — returned: ${result}`;
+      return `**Evaluated** — returned:\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
     }
   );
 }
