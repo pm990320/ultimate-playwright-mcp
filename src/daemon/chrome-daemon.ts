@@ -83,7 +83,12 @@ class ChromeDaemon {
       return; // Chrome is running
     }
 
-    // Always launch our own Chrome (don't reuse existing instances)
+    // On Windows, Chrome's parent process may exit after spawning children.
+    // Check if Chrome is actually reachable before restarting.
+    if (await this.isChromeReachable()) {
+      return;
+    }
+
     this.log("Starting Chrome...");
     await this.startChrome();
   }
@@ -358,7 +363,9 @@ class ChromeDaemon {
 }
 
 // Parse CLI args with commander (only runs if this file is executed directly)
-if (import.meta.url === `file://${process.argv[1]}`) {
+const __selfUrl = import.meta.url;
+const __argvUrl = new URL(`file://${process.argv[1].replace(/\\/g, "/")}`).href;
+if (__selfUrl === __argvUrl) {
   const { program } = await import("commander");
 
   program
