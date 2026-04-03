@@ -60,6 +60,8 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
     "@playwright/test": "^1.49.1",
     "@types/adm-zip": "^0.5.7",
     "@types/node": "^22.19.10",
