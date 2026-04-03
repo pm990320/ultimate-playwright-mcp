@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1](https://github.com/pm990320/ultimate-playwright-mcp/compare/v0.2.0...v0.2.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* use tag_name for checkout to fix npm publish ([4b27fa4](https://github.com/pm990320/ultimate-playwright-mcp/commit/4b27fa4bea930a26688c62cac25dbaca54515502))
+* use tag_name output for checkout instead of github.ref ([d082f3d](https://github.com/pm990320/ultimate-playwright-mcp/commit/d082f3dbe98834f5ebe049992eb40e02a8299ec8))
+
 ## [0.2.0](https://github.com/pm990320/ultimate-playwright-mcp/compare/v0.1.3...v0.2.0) (2026-04-03)
 
 
