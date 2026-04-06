@@ -56,13 +56,14 @@
     "adm-zip": "^0.5.16",
     "commander": "^12.1.0",
     "glob": "^13.0.1",
-    "playwright-core": "^1.49.1",
+    "playwright-checkpoint": "^0.3.0",
+    "playwright-core": "^1.59.1",
     "ws": "^8.19.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
-    "@playwright/test": "^1.49.1",
+    "@playwright/test": "^1.59.1",
     "@types/adm-zip": "^0.5.7",
     "@types/node": "^22.19.10",
     "@types/ws": "^8.18.1",

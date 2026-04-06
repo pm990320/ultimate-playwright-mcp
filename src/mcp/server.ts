@@ -17,6 +17,7 @@ import { registerBrowserSnapshotTool } from "./tools/snapshot.js";
 import { registerBrowserActionTools } from "./tools/actions.js";
 import { registerBrowserTabGroupTool } from "./tools/tab-group.js";
 import { registerBrowserScreenshotTool } from "./tools/screenshot.js";
+import { registerBrowserCheckpointTools } from "./tools/checkpoint.js";
 import { warmupTabGrouper, seedExtensionIdFromPath } from "../browser/chrome-tab-groups.js";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -54,6 +55,7 @@ export async function createMCPServer(config: ServerConfig) {
   registerBrowserSnapshotTool(registerTool, config);
   registerBrowserActionTools(registerTool, config);
   registerBrowserScreenshotTool(registerTool, config);
+  registerBrowserCheckpointTools(registerTool, config);
 
   // List tools handler
   server.setRequestHandler(ListToolsRequestSchema, async () => {

@@ -37,6 +37,7 @@ The official [`@playwright/mcp`](https://github.com/nickmccurdy/playwright-mcp) 
 - ✅ **Shared Cookies** - All agents share the same BrowserContext (cookies, sessions, localStorage)
 - ✅ **Parallel Execution** - Multiple agents can operate simultaneously without interference
 - ✅ **CDP Connection** - Connects to existing Chrome via Chrome DevTools Protocol
+- ✅ **Native Page Checkpoints** - Capture structured artifacts and generate reports per `targetId`
 - ✅ **Battle-Tested** - Extracted from [OpenClaw](https://github.com/openclaw/openclaw) (MIT licensed)
 
 ## Installation
@@ -126,6 +127,23 @@ Both tabs are now navigated independently!
 | `browser_press_key` | Press a keyboard key | `key`, `targetId` |
 | `browser_fill_form` | Fill multiple form fields | `fields`, `targetId` |
 | `browser_wait_for` | Wait for conditions | `text`, `selector`, `url`, `loadState`, `targetId` |
+| `browser_checkpoint` | Capture a structured checkpoint for a tab | `name`, `targetId`, `collectors` |
+| `browser_checkpoint_report` | Generate reports from stored checkpoints | `format`, `resultsDir` |
+
+## Checkpoints
+
+Use `browser_checkpoint` when you want a persisted capture of the current page for later review or report generation.
+
+- Checkpoints are scoped to the resolved `targetId`, so they work with this server's tab isolation model.
+- Artifacts and manifests are written under `~/.ultimate-playwright-mcp/checkpoints` by default.
+- Generated reports are written under `~/.ultimate-playwright-mcp/checkpoints/report`.
+
+Example:
+
+```text
+1. browser_checkpoint({ targetId: "ABC123", name: "after-login" })
+2. browser_checkpoint_report({ format: "html" })
+```
 
 ## Tab Groups (Multi-User Isolation)
 
@@ -251,6 +269,9 @@ Options:
                         Can also use CDP_ENDPOINT env var
   --agent-id <id>       Optional agent ID for logging/debugging
                         Can also use AGENT_ID env var
+  --checkpoint-output-dir <path>
+                        Root directory for checkpoint manifests, artifacts, and reports
+                        Can also use CHECKPOINT_OUTPUT_DIR env var
   -V, --version         Output version number
   -h, --help            Display help
 ```

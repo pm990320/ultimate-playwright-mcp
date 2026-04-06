@@ -39,6 +39,11 @@ program
     "Download directory for Chrome (default: ~/Downloads)",
     process.env.DOWNLOAD_DIR
   )
+  .option(
+    "--checkpoint-output-dir <path>",
+    "Directory for checkpoint manifests, artifacts, and reports (default: ~/.ultimate-playwright-mcp/checkpoints)",
+    process.env.CHECKPOINT_OUTPUT_DIR
+  )
   .action(async (options) => {
     const config: ServerConfig = {
       cdpEndpoint: options.cdpEndpoint,
@@ -47,6 +52,7 @@ program
       chromeExtensions: options.chromeExtensions?.split(",").map((s: string) => s.trim()).filter(Boolean),
       chromeExecutable: options.chromeExecutable,
       downloadDir: options.downloadDir,
+      checkpointOutputDir: options.checkpointOutputDir,
     };
 
     try {

@@ -38,6 +38,12 @@ export interface ServerConfig {
    * Default: ~/.ultimate-playwright-mcp/downloads
    */
   downloadDir?: string;
+
+  /**
+   * Root directory for checkpoint manifests, artifacts, and generated reports
+   * Default: ~/.ultimate-playwright-mcp/checkpoints
+   */
+  checkpointOutputDir?: string;
 }
 
 export function validateConfig(_config: ServerConfig): void {
