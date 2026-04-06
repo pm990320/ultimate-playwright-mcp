@@ -1,11 +1,8 @@
 /**
  * browser_tab_group tool — manage tab groups for multi-user isolation.
  *
- * Each session should create a tab group first, then use the group name
- * with browser_tabs and other tools to stay isolated.
- *
- * State is stored in the companion extension's chrome.storage.local —
- * no external JSON files. The extension is the source of truth.
+ * Logical isolation should still work when the companion extension is not
+ * loaded. Visual Chrome tab groups are best-effort only.
  */
 
 import type { ServerConfig } from "../../config.js";
@@ -14,6 +11,8 @@ import {
   createTabGroup,
   listTabGroups,
   deleteTabGroup,
+  pruneStaleTargets,
+  getTabGroup,
 } from "../../browser/tab-groups.js";
 import {
   listPagesViaPlaywright,
@@ -21,6 +20,9 @@ import {
 } from "../../browser/pw-session.js";
 import {
   isTabGrouperAvailable,
+  ungroupTabsVisually,
+  mapTargetIdsToChromeTabIds,
+  listVisualTabGroups,
 } from "../../browser/chrome-tab-groups.js";
 
 export function registerBrowserTabGroupTool(
@@ -79,24 +81,21 @@ export function registerBrowserTabGroupTool(
 
       const { action } = args;
 
-      // Require extension for all tab group operations
-      const hasExtension = await isTabGrouperAvailable(config.cdpEndpoint);
-      if (!hasExtension) {
-        throw new Error(
-          "Tab Grouper extension not found. Tab groups require the companion extension.\n" +
-            "It should auto-load with the Chrome daemon. Check daemon logs.",
-        );
-      }
-
       switch (action) {
         case "create": {
           if (!args.name) {
             throw new Error("'name' is required for create action");
           }
-          const result = await createTabGroup(config.cdpEndpoint, {
+
+          const result = createTabGroup(config.cdpEndpoint, {
             name: args.name,
             color: args.color,
           });
+
+          const hasExtension = await isTabGrouperAvailable(config.cdpEndpoint);
+          const visualNote = hasExtension
+            ? "Visual grouping: available. Tabs in this logical group can also be grouped in Chrome."
+            : "Visual grouping: unavailable. Logical isolation still works, but Chrome tab groups are disabled until the companion extension loads.";
 
           const status = result.created
             ? "**Tab group created**"
@@ -106,54 +105,82 @@ export function registerBrowserTabGroupTool(
             `${status}\n` +
             `**groupId: ${result.name}** ← Use this with browser_tabs and other tools\n` +
             `Color: ${result.color}\n` +
+            `${visualNote}\n` +
             `Next step: Use browser_tabs with groupId="${result.name}" to create tabs in this group.`
           );
         }
 
         case "list": {
-          // Prune stale targets
           try {
-            const { pruneStaleTargets } = await import("../../browser/tab-groups.js");
             const liveTabs = await listPagesViaPlaywright({
               cdpUrl: config.cdpEndpoint,
             });
-            const liveIds = liveTabs.map((t) => t.targetId);
-            await pruneStaleTargets(config.cdpEndpoint, liveIds);
+            pruneStaleTargets(config.cdpEndpoint, liveTabs.map((tab) => tab.targetId));
           } catch {
-            // Best-effort
+            // Pruning is best-effort.
           }
 
-          const groups = await listTabGroups(config.cdpEndpoint);
+          const groups = listTabGroups(config.cdpEndpoint);
           if (groups.length === 0) {
             return "**No tab groups exist.**\nCreate one with browser_tab_group({ action: 'create', name: '...' })";
           }
 
+          let visualGroups: Array<{ id: number; title: string; color: string }> = [];
+          try {
+            visualGroups = await listVisualTabGroups(config.cdpEndpoint);
+          } catch {
+            // Extension is optional.
+          }
+
           const output = groups
-            .map((g) => {
+            .map((group) => {
+              const visual = group.chromeGroupId
+                ? visualGroups.find((candidate) => candidate.id === group.chromeGroupId)
+                : null;
+              const visualLabel = visual
+                ? ` | Chrome group: ${visual.title} (${visual.color})`
+                : "";
+
               return (
-                `• **${g.name}**\n` +
-                `  Tabs: ${g.tabCount} | Color: ${g.color} | Chrome group: ${g.chromeGroupId ?? "none"} | Created: ${new Date(g.createdAt).toISOString()}`
+                `• **${group.name}**\n` +
+                `  Tabs: ${group.tabCount} | Color: ${group.color} | Created: ${new Date(group.createdAt).toISOString()}${visualLabel}`
               );
             })
             .join("\n\n");
+
           return `**${groups.length} tab group(s)**\n\n${output}`;
         }
 
         case "delete": {
-          // Accept groupId (which is now just the name)
           const name = args.groupId;
           if (!name) {
             throw new Error("'groupId' (group name) is required for delete action");
           }
-          const closeTabs = args.closeTabs !== false;
 
-          const { removed, ungroupedTargetIds } = await deleteTabGroup(
-            config.cdpEndpoint,
-            name,
-          );
+          const closeTabs = args.closeTabs !== false;
+          const group = getTabGroup(config.cdpEndpoint, name);
+          const { removed, ungroupedTargetIds } = deleteTabGroup(config.cdpEndpoint, name);
 
           if (!removed) {
             return `**Tab group not found:** ${name}`;
+          }
+
+          if (group?.chromeGroupId && ungroupedTargetIds.length > 0) {
+            try {
+              const liveTabs = await listPagesViaPlaywright({
+                cdpUrl: config.cdpEndpoint,
+              });
+              const toUngroup = liveTabs.filter((tab) => ungroupedTargetIds.includes(tab.targetId));
+              if (toUngroup.length > 0) {
+                const mapped = await mapTargetIdsToChromeTabIds(config.cdpEndpoint, toUngroup);
+                const chromeTabIds = [...mapped.values()];
+                if (chromeTabIds.length > 0) {
+                  await ungroupTabsVisually(config.cdpEndpoint, chromeTabIds);
+                }
+              }
+            } catch {
+              // Visual ungrouping is best-effort.
+            }
           }
 
           if (closeTabs && ungroupedTargetIds.length > 0) {
@@ -166,11 +193,10 @@ export function registerBrowserTabGroupTool(
                 });
                 closeResults.push(`  ✓ Closed ${targetId}`);
               } catch {
-                closeResults.push(
-                  `  ✗ Could not close ${targetId} (may already be closed)`,
-                );
+                closeResults.push(`  ✗ Could not close ${targetId} (may already be closed)`);
               }
             }
+
             return (
               `**Tab group deleted:** ${name}\n` +
               `**${ungroupedTargetIds.length} tab(s) removed:**\n` +
