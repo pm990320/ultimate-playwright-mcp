@@ -23,7 +23,14 @@ import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export async function createMCPServer(config: ServerConfig) {
+type ServerRuntimeOptions = {
+  lazyDaemonStart?: boolean;
+};
+
+export async function createMCPServer(
+  config: ServerConfig,
+  runtime: ServerRuntimeOptions = {},
+) {
   const server = new Server(
     {
       name: "ultimate-playwright-mcp",
@@ -78,6 +85,16 @@ export async function createMCPServer(config: ServerConfig) {
     }
 
     try {
+      if (runtime.lazyDaemonStart) {
+        await DaemonManager.ensureDaemonRunning({
+          chromeUserDataDir: config.chromeUserDataDir,
+          chromeExtensions: config.chromeExtensions,
+          chromeExecutable: config.chromeExecutable,
+          downloadDir: config.downloadDir,
+          keepAlive: config.keepAlive,
+        });
+      }
+
       const result = await tool.handler(args || {});
 
       // Handle image responses (e.g., screenshots)
@@ -120,18 +137,16 @@ export async function createMCPServer(config: ServerConfig) {
 }
 
 export async function runServer(config: ServerConfig) {
-  // Ensure Chrome daemon is running (auto-start if needed)
-  if (!config.cdpEndpoint) {
-    await DaemonManager.ensureDaemonRunning({
-      chromeUserDataDir: config.chromeUserDataDir,
-      chromeExtensions: config.chromeExtensions,
-      chromeExecutable: config.chromeExecutable,
-      downloadDir: config.downloadDir,
-    });
+  // If no explicit CDP endpoint was provided, use the managed daemon endpoint.
+  // Daemon startup is lazy and happens on first tool call.
+  const managedDaemonMode = !config.cdpEndpoint;
+  if (managedDaemonMode) {
     config.cdpEndpoint = DaemonManager.getCdpEndpoint();
   }
 
-  const server = await createMCPServer(config);
+  const server = await createMCPServer(config, {
+    lazyDaemonStart: managedDaemonMode,
+  });
   const transport = new StdioServerTransport();
   await server.connect(transport);
 

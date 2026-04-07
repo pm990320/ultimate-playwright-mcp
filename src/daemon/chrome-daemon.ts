@@ -2,7 +2,7 @@
 
 /**
  * Chrome Daemon - Singleton process that manages Chrome browser
- * Ensures only one Chrome instance runs and keeps it alive
+ * Ensures only one Chrome instance runs and optionally keeps it alive
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
@@ -26,6 +26,7 @@ interface ChromeDaemonConfig {
   chromeExtensions?: string[];
   chromeExecutable?: string;
   downloadDir?: string;
+  keepAlive?: boolean;
 }
 
 class ChromeDaemon {
@@ -36,6 +37,10 @@ class ChromeDaemon {
 
   constructor(config?: ChromeDaemonConfig) {
     this.config = config || {};
+  }
+
+  private shouldKeepAlive(): boolean {
+    return this.config.keepAlive === true;
   }
 
   async start() {
@@ -70,8 +75,12 @@ class ChromeDaemon {
     // Start Chrome and keep it alive
     await this.ensureChromeRunning();
 
-    // Monitor Chrome process
-    this.monitorInterval = setInterval(() => this.ensureChromeRunning(), 5000);
+    // Monitor Chrome process only when keep-alive mode is enabled.
+    if (this.shouldKeepAlive()) {
+      this.monitorInterval = setInterval(() => this.ensureChromeRunning(), 5000);
+    } else {
+      this.log("Keep-alive disabled; daemon will not restart Chrome after exit");
+    }
   }
 
   private isDaemonRunning(): boolean {
@@ -299,7 +308,12 @@ class ChromeDaemon {
       this.log(`Chrome exited with code ${code}`);
       this.chromeProcess = null;
       if (!this.shuttingDown) {
-        this.log("Chrome crashed, will restart...");
+        if (this.shouldKeepAlive()) {
+          this.log("Chrome exited unexpectedly, will restart...");
+        } else {
+          this.log("Chrome exited; keep-alive disabled, shutting down daemon");
+          this.shutdown();
+        }
       }
     });
 

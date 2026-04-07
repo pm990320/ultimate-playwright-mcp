@@ -266,9 +266,14 @@ ultimate-playwright-mcp [options]
 
 Options:
   --cdp-endpoint <url>  CDP endpoint URL (e.g., http://localhost:9222)
-                        Can also use CDP_ENDPOINT env var
+                        Can also use CDP_ENDPOINT env var.
+                        If omitted, daemon-managed Chrome is started lazily on first tool call.
   --agent-id <id>       Optional agent ID for logging/debugging
                         Can also use AGENT_ID env var
+  --keep-alive          Auto-restart daemon-managed Chrome if it exits
+                        Use --no-keep-alive for testing workflows where you want Chrome to stay down after kill
+                        Default: disabled (no auto-restart)
+                        Can also use KEEP_ALIVE env var (set to "false" to disable)
   --checkpoint-output-dir <path>
                         Root directory for checkpoint manifests, artifacts, and reports
                         Can also use CHECKPOINT_OUTPUT_DIR env var

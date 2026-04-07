@@ -40,6 +40,11 @@ program
     process.env.DOWNLOAD_DIR
   )
   .option(
+    "--keep-alive",
+    "Auto-restart daemon-managed Chrome if it exits (use --no-keep-alive to disable)",
+    process.env.KEEP_ALIVE ? process.env.KEEP_ALIVE !== "false" : false
+  )
+  .option(
     "--checkpoint-output-dir <path>",
     "Directory for checkpoint manifests, artifacts, and reports (default: ~/.ultimate-playwright-mcp/checkpoints)",
     process.env.CHECKPOINT_OUTPUT_DIR
@@ -52,6 +57,7 @@ program
       chromeExtensions: options.chromeExtensions?.split(",").map((s: string) => s.trim()).filter(Boolean),
       chromeExecutable: options.chromeExecutable,
       downloadDir: options.downloadDir,
+      keepAlive: options.keepAlive,
       checkpointOutputDir: options.checkpointOutputDir,
     };
 

@@ -40,6 +40,12 @@ export interface ServerConfig {
   downloadDir?: string;
 
   /**
+   * Keep the daemon-managed Chrome process alive (auto-restart on exit)
+   * Default: false
+   */
+  keepAlive?: boolean;
+
+  /**
    * Root directory for checkpoint manifests, artifacts, and generated reports
    * Default: ~/.ultimate-playwright-mcp/checkpoints
    */
