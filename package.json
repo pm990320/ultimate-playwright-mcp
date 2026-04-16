@@ -29,6 +29,7 @@
     "test": "vitest run",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run build",
     "test:watch": "vitest"
   },
