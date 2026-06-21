@@ -6,6 +6,8 @@ import type { ServerConfig } from "../../config.js";
 import type { RegisterToolFn } from "../types.js";
 import {
   clickViaPlaywright,
+  dragViaPlaywright,
+  dragAtViaPlaywright,
   typeViaPlaywright,
   hoverViaPlaywright,
   pressKeyViaPlaywright,
@@ -58,6 +60,117 @@ export function registerBrowserActionTools(
       });
 
       return `**Clicked** element ${args.ref}`;
+    }
+  );
+
+  // browser_drag
+  register(
+    "browser_drag",
+    "Drag one element onto another (drag-and-drop) by their snapshot refs. mode:'auto' (default) detects native HTML5 drag-and-drop (a draggable source) and dispatches the drag events with a real DataTransfer; otherwise it uses Playwright's mouse-based dragTo for pointer/JS libraries (MUI, dnd-kit, SortableJS). Force a tier with mode:'mouse' (pointer libs) or mode:'native' (HTML5 dataTransfer; Chromium/Firefox only). Get both refs from browser_snapshot.",
+    {
+      type: "object",
+      properties: {
+        startRef: {
+          type: "string",
+          description: "Ref of the element to drag (from snapshot, e.g. 'e5')",
+        },
+        endRef: {
+          type: "string",
+          description: "Ref of the drop-target element (from snapshot, e.g. 'e9')",
+        },
+        targetId: {
+          type: "string",
+          description: "Target ID of the tab",
+        },
+        mode: {
+          type: "string",
+          enum: ["auto", "mouse", "native"],
+          description: "Drag strategy (default: auto — detects HTML5 vs pointer-based)",
+        },
+        timeoutMs: {
+          type: "number",
+          description: "Per-step timeout in ms (default 8000)",
+        },
+      },
+      required: ["startRef", "endRef"],
+    },
+    async (args: {
+      startRef: string;
+      endRef: string;
+      targetId?: string;
+      mode?: "auto" | "mouse" | "native";
+      timeoutMs?: number;
+    }) => {
+      if (!config.cdpEndpoint) throw new Error("CDP endpoint not configured");
+
+      const result = await dragViaPlaywright({
+        cdpUrl: config.cdpEndpoint,
+        targetId: args.targetId,
+        startRef: args.startRef,
+        endRef: args.endRef,
+        mode: args.mode,
+        timeoutMs: args.timeoutMs,
+      });
+
+      return `**Dragged** ${args.startRef} → ${args.endRef} (${result.mode} mode)`;
+    }
+  );
+
+  // browser_drag_at
+  register(
+    "browser_drag_at",
+    "Drag from absolute page coordinates (startX, startY) to (endX, endY). Coordinate-based sibling of browser_drag — use when the source/target have no snapshot ref (canvas-rendered UI, custom widgets, overlays not in the accessibility tree). Get coordinates from browser_screenshot. Drives real mouse events (move → down → move → up), so it handles pointer/JS drag libraries but NOT native HTML5 drag-and-drop (no DataTransfer) — for those use browser_drag with mode:'native'. Blocked inside cross-origin iframes.",
+    {
+      type: "object",
+      properties: {
+        startX: {
+          type: "number",
+          description: "Absolute X of the drag start, in viewport pixels (from browser_screenshot)",
+        },
+        startY: {
+          type: "number",
+          description: "Absolute Y of the drag start, in viewport pixels",
+        },
+        endX: {
+          type: "number",
+          description: "Absolute X of the drop point, in viewport pixels",
+        },
+        endY: {
+          type: "number",
+          description: "Absolute Y of the drop point, in viewport pixels",
+        },
+        targetId: {
+          type: "string",
+          description: "Target ID of the tab",
+        },
+        steps: {
+          type: "number",
+          description: "Intermediate mouse-move steps between start and end (default 10; min 2 so dragover fires)",
+        },
+      },
+      required: ["startX", "startY", "endX", "endY"],
+    },
+    async (args: {
+      startX: number;
+      startY: number;
+      endX: number;
+      endY: number;
+      targetId?: string;
+      steps?: number;
+    }) => {
+      if (!config.cdpEndpoint) throw new Error("CDP endpoint not configured");
+
+      await dragAtViaPlaywright({
+        cdpUrl: config.cdpEndpoint,
+        targetId: args.targetId,
+        startX: args.startX,
+        startY: args.startY,
+        endX: args.endX,
+        endY: args.endY,
+        steps: args.steps,
+      });
+
+      return `**Dragged** (${args.startX}, ${args.startY}) → (${args.endX}, ${args.endY})`;
     }
   );
 
